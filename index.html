@@ -45,7 +45,10 @@
         async function init() {
             try {
                 const res = await fetch(API_URL);
-                allCoins = await res.json();
+                const rawData = await res.json();
+                console.log("Worker 返回的数据内容:", rawData); // 关键调试点
+                allCoins = Array.isArray(rawData) ? rawData : []; // 确保它是一个数组
+                console.log("处理后的 allCoins 长度:", allCoins.length);
                 renderTable();
                 const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
                 ws.onmessage = (e) => {
