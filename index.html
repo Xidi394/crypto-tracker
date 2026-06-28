@@ -2,55 +2,61 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>花小寒实时行情</title>
+    <title>花小寒实时行情 - 专业行情终端</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .up { color: #22c55e; } .down { color: #ef4444; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; }
-        .price-zero { font-family: monospace; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
+        .price-val { font-family: monospace; }
+        tr { transition: background 0.3s; }
     </style>
 </head>
-<body class="bg-gray-900 text-white p-4">
+<body class="bg-gray-900 text-white p-4 md:p-8">
     <div class="max-w-6xl mx-auto">
-        <h1 class="text-2xl font-bold mb-4">实时行情监控 (Pro版)</h1>
-        <input type="text" id="searchInput" placeholder="搜索币种..." class="w-full p-4 bg-gray-800 rounded-lg mb-4 border border-gray-700" onkeyup="renderTable()">
+        <h1 class="text-3xl font-bold mb-6 border-b border-gray-700 pb-4">实时行情监控终端</h1>
         
-        <table class="w-full text-left bg-gray-800 rounded-xl overflow-hidden">
-            <thead class="bg-gray-700 text-gray-300">
-                <tr>
-                    <th class="p-3">图标</th>
-                    <th class="p-3 cursor-pointer" onclick="sortData('symbol')">名称 ↕</th>
-                    <th class="p-3 cursor-pointer" onclick="sortData('current_price')">价格 ↕</th>
-                    <th class="p-3 cursor-pointer" onclick="sortData('price_change_percentage_24h')">24h涨跌 ↕</th>
-                </tr>
-            </thead>
-            <tbody id="body"></tbody>
-        </table>
+        <input type="text" id="searchInput" placeholder="🔍 搜索名称或代号..." 
+               class="w-full p-4 bg-gray-800 rounded-lg mb-6 border border-gray-700 focus:outline-none focus:border-blue-500" 
+               onkeyup="renderTable()">
+        
+        <div class="bg-gray-800 rounded-xl overflow-hidden shadow-xl">
+            <table class="w-full text-left">
+                <thead class="bg-gray-700 text-gray-300 uppercase text-sm">
+                    <tr>
+                        <th class="p-4">图标</th>
+                        <th class="p-4 cursor-pointer hover:text-white" onclick="sortData('symbol')">名称 ↕</th>
+                        <th class="p-4 cursor-pointer hover:text-white" onclick="sortData('current_price')">价格 ↕</th>
+                        <th class="p-4 cursor-pointer hover:text-white" onclick="sortData('price_change_percentage_24h')">24h涨跌 ↕</th>
+                    </tr>
+                </thead>
+                <tbody id="body"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="modal" class="modal" onclick="this.style.display='none'">
-        <div class="bg-gray-900 p-8 rounded-2xl w-full max-w-lg border border-gray-700" onclick="event.stopPropagation()">
-            <div id="m-content">正在载入详情...</div>
+        <div class="bg-gray-900 p-8 rounded-2xl w-full max-w-2xl border border-gray-700 shadow-2xl" onclick="event.stopPropagation()">
+            <div id="m-content">正在加载详细数据...</div>
         </div>
     </div>
 
     <script>
         let allCoins = [];
-        let sortKey = 'market_cap';
         let sortDirection = -1;
 
-        // 核心：防封锁格式化函数 (处理 0.0000000X 情况)
+        // 格式化价格，科学计数法处理小数值
         function formatPrice(p) {
             if (p === null || p === undefined) return 'N/A';
-            return p < 0.001 ? p.toExponential(4) : '$' + p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 8});
+            return Math.abs(p) < 0.001 && p !== 0 ? p.toExponential(4) : '$' + p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 8});
         }
 
         async function init() {
+            // 使用你自己的 Worker 地址
             const res = await fetch('https://bizhongxiangqing.xw31555.workers.dev/');
             allCoins = await res.json();
             renderTable();
             
-            // WebSocket 实时更新 (只更新价格，不刷新全表，防止闪烁)
+            // WebSocket 实现秒级跳动
             const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
             ws.onmessage = (e) => {
                 JSON.parse(e.data).forEach(d => {
@@ -80,12 +86,14 @@
 
         function renderTable() {
             const val = document.getElementById('searchInput').value.toLowerCase();
-            document.getElementById('body').innerHTML = allCoins.filter(c => c.name.toLowerCase().includes(val) || c.symbol.toLowerCase().includes(val)).map(c => `
+            document.getElementById('body').innerHTML = allCoins.filter(c => 
+                c.name.toLowerCase().includes(val) || c.symbol.toLowerCase().includes(val)
+            ).map(c => `
                 <tr id="${c.id}" class="border-b border-gray-700 hover:bg-gray-700 cursor-pointer" onclick="showDetail('${c.id}')">
-                    <td class="p-3"><img src="${c.image}" class="w-8 h-8 rounded-full" onerror="this.src='https://via.placeholder.com/32'"></td>
-                    <td class="p-3 font-bold">${c.symbol.toUpperCase()}</td>
-                    <td class="p-3 price-cell">${formatPrice(c.current_price)}</td>
-                    <td class="p-3 change-cell ${c.price_change_percentage_24h >= 0 ? 'up' : 'down'}">${(c.price_change_percentage_24h || 0).toFixed(2)}%</td>
+                    <td class="p-4"><img src="${c.image}" class="w-10 h-10 rounded-full" onerror="this.src='https://via.placeholder.com/40'"></td>
+                    <td class="p-4 font-bold text-lg">${c.symbol.toUpperCase()} <span class="text-gray-500 text-sm ml-2">${c.name}</span></td>
+                    <td class="p-4 font-mono price-cell">${formatPrice(c.current_price)}</td>
+                    <td class="p-4 change-cell font-bold ${(c.price_change_percentage_24h || 0) >= 0 ? 'up' : 'down'}">${(c.price_change_percentage_24h || 0).toFixed(2)}%</td>
                 </tr>`).join('');
         }
 
@@ -93,16 +101,16 @@
             const c = allCoins.find(x => x.id === id);
             document.getElementById('modal').style.display = 'flex';
             document.getElementById('m-content').innerHTML = `
-                <h2 class="text-3xl font-bold mb-4">${c.name} (${c.symbol.toUpperCase()})</h2>
-                <div class="grid grid-cols-2 gap-4 text-gray-300">
-                    <p><b>实时价格:</b> ${formatPrice(c.current_price)}</p>
-                    <p><b>流通市值:</b> $${c.market_cap?.toLocaleString()}</p>
+                <h2 class="text-3xl font-bold mb-6">${c.name} (${c.symbol.toUpperCase()})</h2>
+                <div class="grid grid-cols-2 gap-6 text-gray-300">
+                    <p><b>当前价格:</b> <span class="text-white">${formatPrice(c.current_price)}</span></p>
+                    <p><b>市值:</b> $${c.market_cap?.toLocaleString()}</p>
                     <p><b>历史最高:</b> ${formatPrice(c.ath)}</p>
                     <p><b>历史最低:</b> ${formatPrice(c.atl)}</p>
-                    <p><b>供应总量:</b> ${c.total_supply?.toLocaleString() || '∞'}</p>
-                    <p><b>流通率:</b> ${((c.circulating_supply / c.total_supply) * 100 || 0).toFixed(2)}%</p>
+                    <p><b>流通供应:</b> ${c.circulating_supply?.toLocaleString()}</p>
+                    <p><b>总量:</b> ${c.total_supply?.toLocaleString() || '∞'}</p>
                 </div>
-                <button onclick="document.getElementById('modal').style.display='none'" class="mt-6 w-full p-2 bg-blue-600 rounded">关闭</button>`;
+                <div class="mt-8 text-sm text-gray-500">更新时间: ${new Date().toLocaleTimeString()}</div>`;
         }
         init();
     </script>
