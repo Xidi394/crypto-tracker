@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>花小寒实时行情</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .up { color: #22c55e; } .down { color: #ef4444; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white p-4">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">实时行情监控</h1>
+        <input type="text" id="searchInput" placeholder="搜索币种 (BTC, ETH)..." class="w-full p-4 bg-gray-800 rounded-lg mb-4 border border-gray-700" onkeyup="renderTable()">
+        
+        <div class="bg-gray-800 rounded-xl overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-700 text-gray-300">
+                    <tr>
+                        <th class="p-3">图标</th>
+                        <th class="p-3 cursor-pointer" onclick="sortData('symbol')">名称 ↕</th>
+                        <th class="p-3 cursor-pointer" onclick="sortData('current_price')">价格 ↕</th>
+                        <th class="p-3 cursor-pointer" onclick="sortData('price_change_percentage_24h')">24h涨跌 ↕</th>
+                    </tr>
+                </thead>
+                <tbody id="body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal" class="modal" onclick="this.style.display='none'">
+        <div class="bg-gray-900 p-8 rounded-2xl w-full max-w-lg border border-gray-700" onclick="event.stopPropagation()">
+            <button onclick="document.getElementById('modal').style.display='none'" class="float-right text-3xl">×</button>
+            <div id="m-content">正在查询...</div>
+        </div>
+    </div>
+
+    <script>
+        let allCoins = [];
+        let sortDirection = 1;
+        // 【关键】请确保这个地址指向你之前部署好的那个 API Worker
+        const API_URL = 'https://bizhongxiangqing.xw31555.workers.dev/'; 
+
+        async function init() {
+            try {
+                const res = await fetch(API_URL);
+                allCoins = await res.json();
+                renderTable();
+                const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
+                ws.onmessage = (e) => {
+                    JSON.parse(e.data).forEach(d => {
+                        let coin = allCoins.find(c => c.symbol.toUpperCase() + 'USDT' === d.s);
+                        if(coin) {
+                            coin.current_price = parseFloat(d.c);
+                            coin.price_change_percentage_24h = parseFloat(d.P);
+                            updateRow(coin);
+                        }
+                    });
+                };
+            } catch(e) { console.error(e); }
+        }
+
+        function formatP(p) { return p < 0.001 ? p.toExponential(4) : '$' + p.toLocaleString(); }
+
+        function updateRow(c) {
+            const row = document.getElementById(c.symbol);
+            if(row) {
+                row.querySelector('.price').innerText = formatP(c.current_price);
+                row.querySelector('.change').innerText = c.price_change_percentage_24h.toFixed(2) + '%';
+            }
+        }
+
+        function sortData(key) {
+            sortDirection *= -1;
+            allCoins.sort((a, b) => (a[key] - b[key]) * sortDirection);
+            renderTable();
+        }
+
+        function renderTable() {
+            const val = document.getElementById('searchInput').value.toLowerCase();
+            document.getElementById('body').innerHTML = allCoins.filter(c => c.symbol.toLowerCase().includes(val)).map(c => `
+                <tr id="${c.symbol}" class="border-b border-gray-700 cursor-pointer hover:bg-gray-700" onclick="show('${c.id}')">
+                    <td class="p-3"><img src="${c.image}" class="w-8 h-8 rounded-full"></td>
+                    <td class="p-3 font-bold">${c.symbol.toUpperCase()}</td>
+                    <td class="p-3 font-mono price">${formatP(c.current_price)}</td>
+                    <td class="p-3 change ${c.price_change_percentage_24h >= 0 ? 'up' : 'down'}">${c.price_change_percentage_24h.toFixed(2)}%</td>
+                </tr>`).join('');
+        }
+
+        function show(id) {
+            const c = allCoins.find(coin => coin.id === id);
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('m-content').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">${c.name}</h2>
+                <div class="space-y-2 text-gray-300">
+                    <p><b>实时价格:</b> ${formatP(c.current_price)}</p>
+                    <p><b>历史最高:</b> ${formatP(c.ath || 0)}</p>
+                    <p><b>历史最低:</b> ${formatP(c.atl || 0)}</p>
+                    <p><b>流通市值:</b> $${c.market_cap?.toLocaleString()}</p>
+                    <p><b>供应总量:</b> ${c.total_supply?.toLocaleString() || '不限量'}</p>
+                </div>`;
+        }
+        init();
+    </script>
+</body>
+</html>
