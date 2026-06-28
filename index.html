@@ -84,7 +84,7 @@
                     <td class="p-3"><img src="${c.image}" class="w-8 h-8 rounded-full"></td>
                     <td class="p-3 font-bold">${c.symbol.toUpperCase()}</td>
                     <td class="p-3 font-mono price">${formatP(c.current_price)}</td>
-                    <td class="p-3 change ${c.price_change_percentage_24h >= 0 ? 'up' : 'down'}">${c.price_change_percentage_24h.toFixed(2)}%</td>
+                    <td class="p-3 change ${(c.price_change_percentage_24h || 0) >= 0 ? 'up' : 'down'}">${(c.price_change_percentage_24h || 0).toFixed(2)}%</td>
                 </tr>`).join('');
         }
 
